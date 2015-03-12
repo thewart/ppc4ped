@@ -1,15 +1,3 @@
-using Distributions
-# Create toy pedigree
-ped = Int64[1 0 0;
-            2 0 0;
-            3 0 0;
-            4 0 0;
-            5 1 2;
-            6 1 2;
-            7 3 4;
-            8 5 7]
-
-#empty genotype matrix
 function pedigree_genosim(ped,maf)
   n = size(ped,1)
   geno = Array(Int64,n,2)
@@ -38,4 +26,3 @@ function pedigree_genosim(ped,maf)
   return sum(geno,2)
 end
 
-geno = pedigree_genosim(ped,0.4)
