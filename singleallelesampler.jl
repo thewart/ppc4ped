@@ -4,7 +4,7 @@ function pedigree_genosim(ped,maf)
   dset = Int64[]
 
 #base population probabilities
-  bpop = Bernoulli(maf)
+  bpop = Distributions.Bernoulli(maf)
 
 # Identify individuals with only genotyped and unknown/founder
   while length(dset) < n
@@ -23,7 +23,7 @@ function pedigree_genosim(ped,maf)
     dset = append!(dset,mset)
   end
 
-  return sum(geno,2)
+  return sum(geno,2),geno
 end
 
 function pedigree_pedsim(init,ngen,popcap)
@@ -31,17 +31,19 @@ function pedigree_pedsim(init,ngen,popcap)
   gensize = min(init * 2.^[0:(ngen-1)],popcap);
   genbound = cumsum(gensize);
 
-  ped = Array(Int64,(init,3));
-  sire = dam = Array(Int64,last(genbound));
+  ped = Array(Int64,(last(genbound),3));
+  sire = Array(Int64,last(genbound));
+  dam = Array(Int64,last(genbound));
 
   grng = [1,genbound[1]];
   sire[grng[1]:grng[2]] = 0;
   dam[grng[1]:grng[2]] = 0;
 
   for i in 2:ngen
-    oldrng = grng
+    oldrng = grng[1:2];
     grng[1] = genbound[i-1]+1;
     grng[2] = genbound[i];
+
     #even = female, odd = male
     sire[grng[1]:grng[2]] = rand(oldrng[1]:2:oldrng[2],gensize[i])
     dam[grng[1]:grng[2]] = rand( (oldrng[1]+1):2:oldrng[2],gensize[i]);

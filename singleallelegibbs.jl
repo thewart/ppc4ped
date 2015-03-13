@@ -1,11 +1,11 @@
-function pedigree_genogibbs(geno,ped;iter=100,mafprior=(1,1),ϵprior=(1,100),
+function pedigree_genogibbs(geno,ped,iter=100,mafprior=(1,1),ϵprior=(1,20),
                             z0=[],maf0=[],ϵ0=0.1)
 
   function construct_zlik(ϵ)
     zlik = [1 1 1 1;          # geno[i]=-1 (not genotyped)
             ϵ/2 ϵ/2 ϵ/2 1-ϵ;  # geno[i]= 0
-            ϵ/2 1-ϵ 1-ϵ ϵ/2;      # geno[i]= 1
-            1-ϵ ϵ/2 ϵ/2 ϵ/2];
+            ϵ/2 1-ϵ 1-ϵ ϵ/2;  # geno[i]= 1
+            1-ϵ ϵ/2 ϵ/2 ϵ/2]; # geno[i]= 2
     return(zlik')
   end
 
@@ -20,12 +20,12 @@ function pedigree_genogibbs(geno,ped;iter=100,mafprior=(1,1),ϵprior=(1,100),
   end
 
   if isempty(z0)
-    #z0 = pedigree_z0(geno,ped);
-      z0 = Array(Int64,(n,2))
-      z0[find(missloc),:] = rand(Bernoulli(maf0),sum(missloc)*2);
-      z0[find(geno.==0),:] = 0;
-      z0[find(geno.==2),:] = 1;
-      z0[find(geno.==1),:] = [1 0; 0 1][rand(Bernoulli(0.5),sum(geno.==1))+1,:];
+       z0 = Array(Int64,(n,2))
+       z0[find(missloc),:] = rand(Bernoulli(maf0),sum(missloc)*2);
+       z0[find(geno.==0),:] = 0;
+       z0[find(geno.==2),:] = 1;
+       z0[find(geno.==1),:] = [1 0; 0 1][rand(Bernoulli(0.5),sum(geno.==1))+1,:];
+#     foo, z0 = pedigree_genosim(ped,maf0);
   end
 
  zstates = Int64[1 1;
@@ -50,6 +50,7 @@ function pedigree_genogibbs(geno,ped;iter=100,mafprior=(1,1),ϵprior=(1,100),
   z = Array(Int64,(n,2,iter+1));
   ϵ = Array(Float64,iter+1);
   maf = Array(Float64,iter+1);
+  badz = falses(iter);
 
   z[:,:,1] = znow = z0;
   ϵ[1] = ϵ0;
@@ -107,6 +108,11 @@ function pedigree_genogibbs(geno,ped;iter=100,mafprior=(1,1),ϵprior=(1,100),
     #calculate conditional posteriors
       post = pk .* pzm .* pzf .* zlik[:,geno[i]+2]
 
+    #check for impossible z
+      if sum(post) == 0
+        post[:] = 1;
+        badz[t] = true;
+      end
     #sample new
       z[i,:,t+1] = zstates[rand(Categorical(post./sum(post))),:];
     #simplify bookeeping by keeping most recent zs represented separately from iteration history
@@ -123,7 +129,7 @@ function pedigree_genogibbs(geno,ped;iter=100,mafprior=(1,1),ϵprior=(1,100),
 
   end
   genosim = reshape(sum(z[:,:,2:(iter+1)],2),(n,iter));
-  return genosim,maf[2:(iter+1)],ϵ[2:(iter+1)],z[:,:,2:(iter+1)]
+  return genosim,maf[2:(iter+1)],ϵ[2:(iter+1)],z[:,:,2:(iter+1)],badz
 
 end
 
