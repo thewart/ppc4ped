@@ -26,3 +26,29 @@ function pedigree_genosim(ped,maf)
   return sum(geno,2)
 end
 
+function pedigree_pedsim(init,ngen,popcap)
+
+  gensize = min(init * 2.^[0:(ngen-1)],popcap);
+  genbound = cumsum(gensize);
+
+  ped = Array(Int64,(init,3));
+  sire = dam = Array(Int64,last(genbound));
+
+  grng = [1,genbound[1]];
+  sire[grng[1]:grng[2]] = 0;
+  dam[grng[1]:grng[2]] = 0;
+
+  for i in 2:ngen
+    oldrng = grng
+    grng[1] = genbound[i-1]+1;
+    grng[2] = genbound[i];
+    #even = female, odd = male
+    sire[grng[1]:grng[2]] = rand(oldrng[1]:2:oldrng[2],gensize[i])
+    dam[grng[1]:grng[2]] = rand( (oldrng[1]+1):2:oldrng[2],gensize[i]);
+  end
+
+  ped[:,1] = [1:last(genbound)];
+  ped[:,2] = sire;
+  ped[:,3] = dam;
+  return ped
+end
