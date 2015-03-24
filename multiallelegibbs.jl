@@ -136,7 +136,7 @@ function pedigree_genogibbs(geno,ped,iter=100,mafprior=(1,1),ϵprior=(1,20),
         end
 
         #update genotyping error counts
-        if (znow[1,i,j] + znow[2,i,j]) != geno[i,j]
+        if ( (znow[1,i,j] + znow[2,i,j]) != geno[i,j] ) & ( geno[i,j] != -1 )
           nerr += 1;
         end
 
