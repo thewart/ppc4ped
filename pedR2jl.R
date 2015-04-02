@@ -4,19 +4,13 @@ source("~/Dropbox/tools/cheetahmm/cheetahmm.R")
 source('~/Dropbox/monkeybris/rscript/setup.R')
 reped <- ped.matchnames(as.character(fv$MON$Animal.ID),pedigree$id)
 pedigree <- ped.replace(pedigree,reped$oldID,reped$ID)
-A <- cheetah.spkin(pedigree)
-genoi <- rownames(A) %in% fv$MON$Animal.ID
-genokin <- as.matrix(A[,genoi])
-
-rthresh <- 0.0625
-keepkin <- rownames(genokin)[apply(genokin>=rthresh,1,any)]
-n <- length(keepkin)
-redped <- subset(pedigree,id %in% keepkin)
-redped <- as.data.frame(lapply(redped,as.character),stringsAsFactors = F)
+redped <- ped.trace(fv$MON$Animal.ID,pedigree)
+n <- nrow(redped)
 
 numped <- data.frame(id=1:n,sire=vector("numeric",n),dam=vector("numeric",n))
 numped$sire <- match(redped$sire,redped$id,nomatch = 0)
 numped$dam <- match(redped$dam,redped$id,nomatch = 0)
+numped <- as.matrix(numped)
 
 X <- array(-1,dim = c(n,ncol(fv$X)))
 X[match(rownames(fv$X),redped$id),] = as.matrix(fv$X)
