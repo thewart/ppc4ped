@@ -1,4 +1,4 @@
-function pedigree_eigenanalysis(X;q=[0.025,0.975],pratio=0.9995)
+function pedigree_eigenanalysis(X;q=[0.025,0.975],pratio=1.0)
   if ndims(X) == 3
     n,m,iter = size(X);
   else
@@ -7,9 +7,15 @@ function pedigree_eigenanalysis(X;q=[0.025,0.975],pratio=0.9995)
   end
 
   eigen = zeros(Float64,(m,iter));
+  Xnorm = Array(Float64,(n,m))
   for i in 1:iter
-    Xnorm = ( X[:,:,i] .- mean(X[:,:,i],1) ) ./ std(X[:,:,i],1);
-    foo = fit(PCA,float(Xnorm'),pratio=pratio);
+    for j in 1:m
+      sd = std(X[:,j,i]);
+      sd = (sd == 0) ? 1 : sd;
+      Xnorm[:,j] = ( X[:,j,i] - mean(X[:,j,i]) ) / sd;
+    end
+    foo = fit(PCA,Xnorm',pratio=pratio);
+    #foo = fit(PCA,float(X[:,:,i]'));
     eigen[1:outdim(foo),i] = principalvars(foo);
   end
 
