@@ -1,4 +1,4 @@
-function pedigree_genogibbs(geno,ped,iter=100,mafprior=(1,1),ϵprior=(1,20),
+function pedigree_genogibbs(geno,ped,iter=100,thin=1,mafprior=(1,1),ϵprior=(1,20),
                             z0=[],maf0=[],ϵ0=0.1)
 
   function construct_zlik(ϵ)
@@ -31,7 +31,7 @@ function pedigree_genogibbs(geno,ped,iter=100,mafprior=(1,1),ϵprior=(1,20),
   end
 
   if isempty(z0)
-    z0 = Array(Int64,(2,n,m))
+    z0 = Array(Int8,(2,n,m))
 #        z0[find(missloc),:] = rand(Bernoulli(maf0),sum(missloc)*2);
 #        z0[find(geno.==0),:] = 0;
 #        z0[find(geno.==2),:] = 1;
@@ -41,7 +41,7 @@ function pedigree_genogibbs(geno,ped,iter=100,mafprior=(1,1),ϵprior=(1,20),
     end
   end
 
- zstates = Int64[1 1;
+ zstates = Int8[1 1;
                  0 1;
                  1 0;
                  0 0];
@@ -51,16 +51,20 @@ function pedigree_genogibbs(geno,ped,iter=100,mafprior=(1,1),ϵprior=(1,20),
   damany = sum(damof,1)[:] .> 0;
 
   #initialize gibbs chain
-  z = Array(Int64,(2,n,m,iter+1));
-  ϵ = Array(Float64,iter+1);
-  maf = Array(Float64,m,iter+1);
-  badz = falses(iter);
+  saveiter = [thin:thin:iter];
+  nsave = length(saveiter);
+  iter = maximum(saveiter);
+
+  z = Array(Int8,(2,n,m,nsave));
+  ϵ = Array(Float64,nsave);
+  maf = Array(Float64,m,nsave);
+#  badz = falses(iter);
 
   pk = ones(Float64,4);
 
-  z[:,:,:,1] = znow = z0;
-  ϵ[1] = ϵ0;
-  maf[:,1] = maf0;
+  znow = z0;
+  ϵnow = ϵ0;
+  mafnow = maf0;
 
   pzflib = hcat([0,1,0,1],  #sire has genotype 0
             [.5,.5,.5,.5], #sire has genotype 1
@@ -76,7 +80,7 @@ function pedigree_genogibbs(geno,ped,iter=100,mafprior=(1,1),ϵprior=(1,20),
   nerr = 0;
 
   for t in 1:iter
-    zlik = construct_zlik(ϵ[t]);
+    zlik = construct_zlik(ϵnow);
 
     for i in 1:n
       for j in 1:m
@@ -85,13 +89,13 @@ function pedigree_genogibbs(geno,ped,iter=100,mafprior=(1,1),ϵprior=(1,20),
         if sire[i] > 0 #father in pedigree; sampled from father's alleles
           pzf = pzflib[:,znow[1,sire[i],j] + znow[2,sire[i],j]+1];
         else #father not in pedigree; sample from base population
-          pzf = [maf[j,t], 1-maf[j,t], maf[j,t], 1-maf[j,t]];
+          pzf = [mafnow[j], 1-mafnow[j], mafnow[j], 1-mafnow[j]];
         end
 
         if dam[i] > 0 #mother in pedigree; sampled from father's alleles
           pzm = pzmlib[:,znow[1,dam[i],j] + znow[2,dam[i],j]+1];
         else #mother not in pedigree; sample from base population
-          pzm = [maf[j,t], maf[j,t], 1-maf[j,t], 1-maf[j,t]];
+          pzm = [mafnow[j], mafnow[j], 1-mafnow[j], 1-mafnow[j]];
         end
 
         pk[:] = 1;
@@ -121,11 +125,9 @@ function pedigree_genogibbs(geno,ped,iter=100,mafprior=(1,1),ϵprior=(1,20),
 #         post[:] = 1;
 #         badz[t] = true;
 #       end
-
         #sample new allele
-        z[:,i,j,t+1] = zstates[rand(Categorical(post./sum(post))),:];
+        znow[:,i,j] = zstates[rand(Categorical(post./sum(post))),:];
         #simplify bookeeping by keeping most recent zs represented separately from iteration history
-        znow[:,i,j] = z[:,i,j,t+1]
 
         #update founder minor allele counts
         if ped[i,2]==0
@@ -145,16 +147,24 @@ function pedigree_genogibbs(geno,ped,iter=100,mafprior=(1,1),ϵprior=(1,20),
 
     #update minor allele frequency and allele error frequency
     for j in 1:m
-      maf[j,t+1] = rand( Beta(nma[j] + mafprior[1], nfound - nma[j] + mafprior[2]) );
+      mafnow[j] = rand( Beta(nma[j] + mafprior[1], nfound - nma[j] + mafprior[2]) );
       nma[j] = 0; #while we're at it reset maf
     end
 
     #update genotype error probability
-    ϵ[t+1] = rand( Beta(nerr + ϵprior[1],n*m - nmiss - nerr + ϵprior[2]) );
+    ϵnow = rand( Beta(nerr + ϵprior[1],n*m - nmiss - nerr + ϵprior[2]) );
     nerr = 0; #reset error probability
+
+    nsamp = findfirst(saveiter .== t);
+    if nsamp > 0
+      maf[:,nsamp] = mafnow;
+      ϵ[nsamp] = ϵnow;
+      z[:,:,:,nsamp] = znow;
+    end
+
   end
-  genosim = reshape(sum(z[:,:,:,2:(iter+1)],1),(n,m,iter));
-  return genosim,maf[:,2:(iter+1)],ϵ[2:(iter+1)],z[:,:,2:(iter+1)],badz
+  genosim = reshape(sum(z,1),(n,m,nsave));
+  return genosim,maf,ϵ,z
 
 end
 
