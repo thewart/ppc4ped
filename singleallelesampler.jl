@@ -1,26 +1,31 @@
 function pedigree_genosim(ped,maf)
   n = size(ped,1)
-  geno = Array(Int64,n,2)
-  dset = Int64[]
+  geno = Array(Int8,n,2)
+  dset = Int64[0]
 
 #base population probabilities
-  bpop = Distributions.Bernoulli(maf)
+  bpop = Bernoulli(maf);
+
+  found = ped[:,2:3].==0;
+  geno[found] = rand(bpop,countnz(found));
+  dset = append!(dset,find(sum(ped[:,2:3].==0,2).==2))
 
 # Identify individuals with only genotyped and unknown/founder
-  while length(dset) < n
-    mset = find( (indexin(ped[:,2],dset) .> 0) | (ped[:,2] .==0) & (indexin(ped[:,3],dset) .> 0) | (ped[:,3] .==0) )
+  while length(dset) < (n + 1)
+    mset = find( (indexin(ped[:,2],dset) .> 0) &
+                  (indexin(ped[:,3],dset) .> 0) )
     mset = setdiff(mset,dset)
 
     for i in mset
-      sire = ped[i,2]
-      dam = ped[i,3]
+      sire = ped[i,2];
+      dam = ped[i,3];
 
-      geno[i,1] = (sire > 0) ? geno[sire,rand(1:2)] : rand(bpop)
-      geno[i,2] = (dam > 0) ? geno[dam,rand(1:2)] : rand(bpop)
+      geno[i,1] = (sire > 0) ? geno[sire,rand(1:2)] : rand(bpop);
+      geno[i,2] = (dam > 0) ? geno[dam,rand(1:2)] : rand(bpop);
 
     end
 
-    dset = append!(dset,mset)
+    dset = append!(dset,mset);
   end
 
   return sum(geno,2),geno
