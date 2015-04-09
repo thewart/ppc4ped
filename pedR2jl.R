@@ -16,26 +16,40 @@ X <- array(-1,dim = c(n,ncol(fv$X)))
 X[match(rownames(fv$X),redped$id),] = as.matrix(fv$X)
 X[is.na(X)] <- -1
 
-shitlist <- c()
-for (i in 1:length(unique(fv$SNP$chrom)))
+if (!exists("type")) type = "none"
+
+if (type == "eigenanalysis")
 {
-  ic <- unique(fv$SNP$chrom)[i]
-  loci <- which(fv$SNP$chrom == ic)
-  loc <- fv$SNP$loc[loci]
-  nl <- length(loc)
-
-  D <- abs(kronecker(t(rep(1,times=nl)),loc) - kronecker(rep(1,times=nl),t(loc)))
-  foo <- which(D<3e5 & D>0,arr=T)
-  dump <- vector("numeric")
-  
-  moo <- foo[!(foo[,1] %in% dump | foo[,2] %in% dump),]
-  while (length(moo) > 0)
+  shitlist <- c()
+  for (i in 1:length(unique(fv$SNP$chrom)))
   {
-    dump <- c(dump, as.numeric(names(which.max(table(moo[,1])))))
+    ic <- unique(fv$SNP$chrom)[i]
+    loci <- which(fv$SNP$chrom == ic)
+    loc <- fv$SNP$loc[loci]
+    nl <- length(loc)
+    
+    D <- abs(kronecker(t(rep(1,times=nl)),loc) - kronecker(rep(1,times=nl),t(loc)))
+    foo <- which(D<3e5 & D>0,arr=T)
+    dump <- vector("numeric")
+    
     moo <- foo[!(foo[,1] %in% dump | foo[,2] %in% dump),]
+    while (length(moo) > 0)
+    {
+      dump <- c(dump, as.numeric(names(which.max(table(moo[,1])))))
+      moo <- foo[!(foo[,1] %in% dump | foo[,2] %in% dump),]
+    }
+    
+    shitlist <- c(shitlist,loci[dump])
   }
-  
-  shitlist <- c(shitlist,loci[dump])
+  X <- X[,-shitlist]
+} else if (type=="LD")
+{
+  m <- nrow(fv$SNP)
+  fv$SNP$chrom <- as.character(fv$SNP$chrom)
+  chrom_match <- matrix(fv$SNP$chrom,m,m) == matrix(fv$SNP$chrom,m,m,byrow = T)
+  dist <- abs(matrix(fv$SNP$loc,m,m) - matrix(fv$SNP$loc,m,m,byrow=T))
+  dist[!chrom_match] <- Inf
+  shitlist <- which(colSums(dist<3e5)==1)
+  X <- X[,-shitlist]
+  dist <- dist[-shitlist,-shitlist]
 }
-
-X <- X[,-shitlist]
