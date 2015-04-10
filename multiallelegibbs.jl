@@ -1,5 +1,5 @@
-function pedigree_genogibbs(geno,ped,iter=100,thin=1,mafprior=(1,1),ϵprior=(1,20),
-                            z0=[],maf0=[],ϵ0=0.1)
+function pedigree_genogibbs(geno,ped,iter=100,thin=1;mafprior=(1,1),ϵprior=(1,20),
+                            z0=[],maf0=[],ϵ0=0.1,path=ASCIIString[])
 
   function construct_zlik(ϵ)
     zlik = [1 1 1 1;          # geno[i]=-1 (not genotyped)
@@ -62,9 +62,9 @@ function pedigree_genogibbs(geno,ped,iter=100,thin=1,mafprior=(1,1),ϵprior=(1,2
 
   pk = ones(Float64,4);
 
-  znow = z0;
-  ϵnow = ϵ0;
-  mafnow = maf0;
+  zt = z0;
+  ϵt = ϵ0;
+  maft = maf0;
 
   pzflib = hcat([0,1,0,1],  #sire has genotype 0
             [.5,.5,.5,.5], #sire has genotype 1
@@ -80,22 +80,22 @@ function pedigree_genogibbs(geno,ped,iter=100,thin=1,mafprior=(1,1),ϵprior=(1,2
   nerr = 0;
 
   for t in 1:iter
-    zlik = construct_zlik(ϵnow);
+    zlik = construct_zlik(ϵt);
 
     for i in 1:n
       for j in 1:m
 
       #calculate genotype probability given base MAF and/or parental genotypes
         if sire[i] > 0 #father in pedigree; sampled from father's alleles
-          pzf = pzflib[:,znow[1,sire[i],j] + znow[2,sire[i],j]+1];
+          pzf = pzflib[:,zt[1,sire[i],j] + zt[2,sire[i],j]+1];
         else #father not in pedigree; sample from base population
-          pzf = [mafnow[j], 1-mafnow[j], mafnow[j], 1-mafnow[j]];
+          pzf = [maft[j], 1-maft[j], maft[j], 1-maft[j]];
         end
 
         if dam[i] > 0 #mother in pedigree; sampled from father's alleles
-          pzm = pzmlib[:,znow[1,dam[i],j] + znow[2,dam[i],j]+1];
+          pzm = pzmlib[:,zt[1,dam[i],j] + zt[2,dam[i],j]+1];
         else #mother not in pedigree; sample from base population
-          pzm = [mafnow[j], mafnow[j], 1-mafnow[j], 1-mafnow[j]];
+          pzm = [maft[j], maft[j], 1-maft[j], 1-maft[j]];
         end
 
         pk[:] = 1;
@@ -103,13 +103,13 @@ function pedigree_genogibbs(geno,ped,iter=100,thin=1,mafprior=(1,1),ϵprior=(1,2
         if sireany[i]
           for k in find(sireof[:,i])
             for s in 1:4
-              pk[s] = pk[s] * pklib[s,znow[1,k,j]+1];
+              pk[s] = pk[s] * pklib[s,zt[1,k,j]+1];
             end
           end
         elseif damany[i]
           for k in find(damof[:,i])
             for s in 1:4
-              pk[s] = pk[s] * pklib[s,znow[2,k,j]+1];
+              pk[s] = pk[s] * pklib[s,zt[2,k,j]+1];
             end
           end
         end
@@ -126,19 +126,19 @@ function pedigree_genogibbs(geno,ped,iter=100,thin=1,mafprior=(1,1),ϵprior=(1,2
 #         badz[t] = true;
 #       end
         #sample new allele
-        znow[:,i,j] = zstates[rand(Categorical(post./sum(post))),:];
+        zt[:,i,j] = zstates[rand(Categorical(post./sum(post))),:];
         #simplify bookeeping by keeping most recent zs represented separately from iteration history
 
         #update founder minor allele counts
         if ped[i,2]==0
-          nma[j] += znow[1,i,j];
+          nma[j] += zt[1,i,j];
         end
         if ped[i,3]==0
-          nma[j] += znow[2,i,j];
+          nma[j] += zt[2,i,j];
         end
 
         #update genotyping error counts
-        if ( (znow[1,i,j] + znow[2,i,j]) != geno[i,j] ) & ( geno[i,j] != -1 )
+        if ( (zt[1,i,j] + zt[2,i,j]) != geno[i,j] ) & ( geno[i,j] != -1 )
           nerr += 1;
         end
 
@@ -147,23 +147,31 @@ function pedigree_genogibbs(geno,ped,iter=100,thin=1,mafprior=(1,1),ϵprior=(1,2
 
     #update minor allele frequency and allele error frequency
     for j in 1:m
-      mafnow[j] = rand( Beta(nma[j] + mafprior[1], nfound - nma[j] + mafprior[2]) );
+      maft[j] = rand( Beta(nma[j] + mafprior[1], nfound - nma[j] + mafprior[2]) );
       nma[j] = 0; #while we're at it reset maf
     end
 
     #update genotype error probability
-    ϵnow = rand( Beta(nerr + ϵprior[1],n*m - nmiss - nerr + ϵprior[2]) );
+    ϵt = rand( Beta(nerr + ϵprior[1],n*m - nmiss - nerr + ϵprior[2]) );
     nerr = 0; #reset error probability
 
     nsamp = findfirst(saveiter .== t);
     if nsamp > 0
-      maf[:,nsamp] = mafnow;
-      ϵ[nsamp] = ϵnow;
-      z[:,:,:,nsamp] = znow;
+      maf[:,nsamp] = maft;
+      ϵ[nsamp] = ϵt;
+      z[:,:,:,nsamp] = zt;
     end
 
   end
   genosim = reshape(sum(z,1),(n,m,nsave));
+
+  if !isempty(path)
+    writecsv(string(path,"geno.csv"),pedfit[4][:]);
+    writecsv(string(path,"maf.csv"),pedfit[2]);
+    writecsv(string(path,"errate.csv"),pedfit[3]);
+    writecsv(string(path,"dims.csv"),[n,m,nsave]);
+  end
+
   return genosim,maf,ϵ,z
 
 end
@@ -177,4 +185,16 @@ function pedigree_childfinder(ped)
     damof[i,j] = j == ped[i,3];
   end
   return sireof,damof
+end
+
+function pedigree_loadsamp(path)
+  maf = readcsv(string(path,"maf.csv"),Float64);
+  z = readcsv(string(path,"geno.csv"),Int8);
+  err = readcsv(string(path,"errate.csv"));
+  d = readcsv(string(path,"dims.csv"),Int64);
+
+  z = reshape(z,(2,d[1],d[2],d[3]));
+  geno = reshape(sum(z,1),(d[1],d[2],d[3]))
+  return geno,maf,err,z
+
 end
