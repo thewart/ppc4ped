@@ -1,6 +1,4 @@
-load("~/Dropbox/monkeybris/data/SNP.Rdat")
 source('~/Dropbox/monkeybris/rscript/pedigree.preproc.batch.R')
-source("~/Dropbox/tools/cheetahmm/cheetahmm.R")
 source('~/Dropbox/monkeybris/rscript/setup.R')
 reped <- ped.matchnames(as.character(fv$MON$Animal.ID),pedigree$id)
 pedigree <- ped.replace(pedigree,reped$oldID,reped$ID)
