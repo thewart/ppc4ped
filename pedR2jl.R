@@ -1,5 +1,5 @@
 source('~/Dropbox/monkeybris/rscript/pedigree.preproc.batch.R')
-source('~/Dropbox/monkeybris/rscript/setup.R')
+#source("~/code/snparray/processraw.R")
 reped <- ped.matchnames(as.character(fv$MON$Animal.ID),pedigree$id)
 pedigree <- ped.replace(pedigree,reped$oldID,reped$ID)
 redped <- ped.trace(fv$MON$Animal.ID,pedigree)
@@ -10,36 +10,20 @@ numped$sire <- match(redped$sire,redped$id,nomatch = 0)
 numped$dam <- match(redped$dam,redped$id,nomatch = 0)
 numped <- as.matrix(numped)
 
-X <- array(-1,dim = c(n,ncol(fv$X)))
-X[match(rownames(fv$X),redped$id),] = as.matrix(fv$X)
+#fv <- cullSNP(as.data.frame(dat[,-1,with=F]),SNPdat,mthresh=0.25,lthresh = 0.1)
+dat <- fread("~/analysis/SNPannotation/SNPmaster_qc.csv")
+SNPdat <- fread("~/analysis/SNPannotation/SNPdat.csv")
+X <- array(-1,dim = c(n,ncol(dat)-1))
+X[match(dat$ID,redped$id),] <- as.matrix(dat[,-1,with=F])
 X[is.na(X)] <- -1
 
 if (!exists("type")) type = "none"
 
 if (type == "eigenanalysis")
 {
-  shitlist <- c()
-  for (i in 1:length(unique(fv$SNP$chrom)))
-  {
-    ic <- unique(fv$SNP$chrom)[i]
-    loci <- which(fv$SNP$chrom == ic)
-    loc <- fv$SNP$loc[loci]
-    nl <- length(loc)
-    
-    D <- abs(kronecker(t(rep(1,times=nl)),loc) - kronecker(rep(1,times=nl),t(loc)))
-    foo <- which(D<3e5 & D>0,arr=T)
-    dump <- vector("numeric")
-    
-    moo <- foo[!(foo[,1] %in% dump | foo[,2] %in% dump),]
-    while (length(moo) > 0)
-    {
-      dump <- c(dump, as.numeric(names(which.max(table(moo[,1])))))
-      moo <- foo[!(foo[,1] %in% dump | foo[,2] %in% dump),]
-    }
-    
-    shitlist <- c(shitlist,loci[dump])
-  }
+  shitlist <- SNPdelink(SNPdat)
   X <- X[,-shitlist]
+  Xdat <- SNPdat[-shitlist]
 } else if (type=="LD")
 {
   m <- nrow(fv$SNP)
