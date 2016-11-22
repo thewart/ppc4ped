@@ -1,4 +1,4 @@
-function pedigree_genogibbs(geno,ped,iter=100,thin=1;mafprior=(1,1),ϵprior=(1,20),
+function pedigree_genogibbs(geno::Array{Int64,2},ped::Array{Int64,2},iter=100,thin=1;mafprior=(1,1),ϵprior=(1,20),
                             z0=[],maf0=[],ϵ0=0.1,path=ASCIIString[])
 
   function construct_zlik(ϵ)
@@ -51,7 +51,7 @@ function pedigree_genogibbs(geno,ped,iter=100,thin=1;mafprior=(1,1),ϵprior=(1,2
   damany = sum(damof,1)[:] .> 0;
 
   #initialize gibbs chain
-  saveiter = [thin:thin:iter];
+  saveiter = thin:thin:iter;
   nsave = length(saveiter);
   iter = maximum(saveiter);
 
@@ -166,9 +166,9 @@ function pedigree_genogibbs(geno,ped,iter=100,thin=1;mafprior=(1,1),ϵprior=(1,2
   genosim = reshape(sum(z,1),(n,m,nsave));
 
   if !isempty(path)
-    writecsv(string(path,"geno.csv"),pedfit[4][:]);
-    writecsv(string(path,"maf.csv"),pedfit[2]);
-    writecsv(string(path,"errate.csv"),pedfit[3]);
+    writecsv(string(path,"geno.csv"),genosim[:]);
+    writecsv(string(path,"maf.csv"),maf);
+    writecsv(string(path,"errate.csv"),ϵ);
     writecsv(string(path,"dims.csv"),[n,m,nsave]);
   end
 
